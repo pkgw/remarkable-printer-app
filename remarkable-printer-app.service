@@ -1,0 +1,10 @@
+[Unit]
+Description=reMarkable Printer Application
+
+[Service]
+ExecStart=remarkable-printer-app server
+ExecStop=remarkable-printer-app shutdown
+Type=simple
+
+[Install]
+WantedBy=multi-user.target

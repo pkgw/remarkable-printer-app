@@ -1,0 +1,545 @@
+name: remarkable-printer-app
+base: core22
+version: '20240504-11'
+grade: stable
+summary: reMarkable Printer Application
+description: |
+  The reMarkable Printer Application is a PAPPL (Printer Application Framework) based 
+  Printer Application that supports printing to a reMarkable tablet via the
+  reMarkable Connect cloud service.
+
+confinement: strict
+
+# We use the upstream versioning of foomatic-db as it contains most of
+# the manufacturer-supplied PostScript PPD files
+### adopt-info: foomatic-db
+
+# Only build on the architectures supported
+architectures:
+  - build-on: amd64
+
+apps:
+  remarkable-printer-app-server:
+    command: scripts/run-remarkable-printer-app-server
+    daemon: simple
+    # Use a systemd timeout longer than 1 min as PAPPL has a 1-minute
+    # shutdown timeout if there are pending jobs for which the printer
+    # is not responding. This way we avoid the Printer Application
+    # getting killed and shut down uncleanly.
+    stop-timeout: 70s
+    plugs: [avahi-control, home, network, network-bind, raw-usb]
+  remarkable-printer-app:
+    command: scripts/run-remarkable-printer-app
+    plugs: [avahi-control, home, network, network-bind, raw-usb]
+
+parts:
+  pappl:
+    source: https://github.com/michaelrsweet/pappl
+    source-type: git
+    source-tag: 'v1.4.9'
+    source-depth: 1
+    plugin: autotools
+    override-build: |
+      set -eux
+      # Raise the supported number of vendor-specific options/attributes in
+      # PAPPL to 256, as the original 32 can be too small for some busy PPD
+      # files
+      perl -p -i -e 's/(define\s+PAPPL_MAX_VENDOR\s+)32/\1 256/' pappl/printer.h
+      # De-activate log-rotating. It does not work with the forked processes
+      # of the filters
+      perl -p -i -e 's/(system->logmaxsize\s+=).*/\1 0;/' pappl/system.c
+      # As we do not use PAPPL's own backends but the CUPS backends using the
+      # "cups" device scheme of pappl-retrofit, we let the manual "Network
+      # Printer" device on the "Add Printer" page of the web interface use a
+      # "cups:socket://..." URI instead of simply "socket://..."
+      perl -p -i -e 's/(httpAssembleURI\(.*?)"socket"(.*?\))/\1"cups:socket"\2/' pappl/system-webif.c
+      # PAPPL's build system does not insert the LDFLAGS when linking.
+      # Patching Makedefs.in to fix this
+      perl -p -i -e 's/^(\s*DSOFLAGS\s*=\s*\S*\s+)/\1\$\(LDFLAGS\) /' Makedefs.in
+      craftctl default
+    autotools-configure-parameters:
+      - --prefix=/usr
+      - --with-papplstatedir=/var/snap/remarkable-printer-app/common
+      - --with-papplsockdir=/var/snap/remarkable-printer-app/common/tmp
+      - --enable-libjpeg
+      - --enable-libpng
+      - --enable-libusb
+      - --with-dnssd=avahi
+    build-packages:
+      - libavahi-client-dev
+      - libgnutls28-dev
+      - libjpeg-dev
+      - libpam0g-dev
+      - libpng-dev
+      - libusb-1.0-0-dev
+      - zlib1g-dev
+      - perl-base
+    stage-packages:
+      # We have libavahi-client3 already in this Snap via the "cups" part,
+      # so here we do not stage it again to avoid any file clashes.
+      #- libavahi-client3
+      - libpng16-16
+      - libusb-1.0-0
+    prime:
+      - -etc/fonts
+      - -var
+      - lib/*/lib*.so*
+      - usr/lib/lib*.so*
+      - usr/lib/*/lib*.so*
+      - -usr/include
+      - -usr/lib/pkgconfig
+      - -usr/share/fonts
+      - -usr/share/man
+      - -usr/share/doc
+      - -usr/share/doc-base
+      - -usr/share/lintian
+      - -snap
+    after: [cups]
+
+  pappl-retrofit:
+    source: https://github.com/openprinting/pappl-retrofit
+    source-type: git
+    # source-tag: '1.0b2'
+    source-depth: 1
+    plugin: autotools
+    autotools-configure-parameters:
+      - --prefix=/usr
+    # To find the libraries built in this Snap
+    build-environment:
+      - LD_LIBRARY_PATH: "${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$CRAFT_STAGE/usr/lib"
+    build-packages:
+      - autoconf
+      - automake
+      - libtool
+      - autotools-dev
+      - pkg-config
+      - perl-base
+    stage-packages:
+      - libusb-1.0-0
+    organize:
+      usr/share/legacy-printer-app/testpage.pdf: usr/share/remarkable-printer-app/testpage.pdf
+    prime:
+      - lib/*/lib*.so*
+      - usr/lib/lib*.so*
+      - usr/lib/*/lib*.so*
+      - usr/share/remarkable-printer-app/testpage.pdf
+      - -var
+      - -usr/bin/legacy-printer-app
+      - -usr/include
+      - -usr/lib/pkgconfig
+      - -usr/lib/legacy-printer-app
+      - -usr/share/legacy-printer-app
+      - -usr/share/fonts
+      - -usr/share/man
+      - -usr/share/doc
+      - -usr/share/doc-base
+      - -usr/share/lintian
+      - -snap
+    after: [cups, pappl, libcupsfilters, libppd]
+
+  qpdf:
+    source: https://github.com/qpdf/qpdf/
+    source-type: git
+    source-tag: 'v11.10.1'
+    source-depth: 1
+    plugin: cmake
+    cmake-parameters:
+      - -DCMAKE_INSTALL_PREFIX=/
+      - -DCMAKE_BUILD_RPATH_USE_ORIGIN=1
+      - -DUSE_IMPLICIT_CRYPTO=0
+      - -DREQUIRE_CRYPTO_GNUTLS=1
+      - -DSHOW_FAILED_TEST_OUTPUT=1
+      - -DCMAKE_BUILD_TYPE=RelWithDebInfo
+      - -DQTEST_COLOR=0
+    build-packages:
+      - cmake
+      - g++
+      - libjpeg-dev
+      - zlib1g-dev
+      - libgnutls28-dev
+    stage-packages:
+      - libjpeg-turbo8
+    stage:
+      # The *.la file which gets installed by "make install" contains a
+      # wrong prefix, breaking parts of this Snap which use this library
+      - -usr/lib/lib*.la
+    prime:
+      - lib/*/lib*.so*
+      - usr/lib/lib*.so*
+      - usr/lib/*/lib*.so*
+      - -etc/fonts
+      - -var
+      - -usr/include
+      - -share/man
+      - -share/doc
+      - -share/lintian
+      - -usr/share/fonts
+      - -usr/share/man
+      - -usr/share/doc
+      - -usr/share/doc-base
+      - -usr/share/lintian
+      - -usr/lib/libqpdf.a
+      - -usr/lib/libqpdf.la
+      - -usr/lib/pkgconfig
+
+  ghostscript:
+    source: https://github.com/ArtifexSoftware/ghostpdl.git
+    source-type: git
+    source-tag: 'ghostpdl-10.05.1rc1_test002'
+    source-depth: 1
+    plugin: autotools
+    # We only need PostScript output, for converting PDF input
+    autotools-configure-parameters:
+      - --prefix=/usr
+      - --without-x
+      - --disable-gtk
+      - --with-drivers=ps2write
+      - --enable-freetype
+      - --without-tesseract
+      - --without-gpdl
+      - --without-pcl
+      - --without-xps
+      - --datarootdir=/snap/remarkable-printer-app/current/usr/share/
+    stage-packages:
+      - libpaper1
+      - libfontconfig1
+      - libfreetype6
+      - libpng16-16
+    prime:
+      - usr/bin/gs
+      - lib/*/lib*.so*
+      - usr/lib/*/lib*.so*
+      - usr/share/ghostscript
+      - -etc/fonts
+      - -var
+      - -usr/include
+      - -usr/lib/pkgconfig
+      - -usr/share/fonts
+      - -usr/share/man
+      - -usr/share/doc
+      - -usr/share/doc-base
+      - -usr/share/lintian
+      - -snap
+    organize:
+      snap/remarkable-printer-app/current/usr/share: usr/share
+    after: [cups]
+
+  cups:
+    source: https://github.com/OpenPrinting/cups
+    source-type: git
+    source-tag: 'v2.4.12'
+    source-depth: 1
+    plugin: autotools
+    # We only need libcups (with headers, ...) and the backends
+    override-build: |
+      set -eux
+      patch -p1 < $CRAFT_PROJECT_DIR/patches/cups-dnssd-backend-socket-only.patch
+      # We use "--with-tls=gnutls" here, as current CUPS defaults to SSL here
+      # and this is buggy, causing a segfault when serving out a HTTPS web
+      # interface page.
+      ./configure --sysconfdir=/var/snap/remarkable-printer-app/common/ --with-tls=gnutls
+      cd cups
+      make
+      cd ..
+      cd backend
+      # Have USB quirk files in user-modifiable space for debugging
+      perl -p -i -e 's/"CUPS_DATADIR"/"USB_QUIRK_DIR"/' usb-libusb.c
+      make snmp dnssd socket ipp ipps lpd usb
+      cd ..
+      mkdir -p $CRAFT_PART_INSTALL/usr/lib
+      cp cups/libcups.a $CRAFT_PART_INSTALL/usr/lib/
+      cp -P cups/libcups.so* $CRAFT_PART_INSTALL/usr/lib/
+      mkdir -p $CRAFT_PART_INSTALL/usr/include/cups
+      cp cups/*.h $CRAFT_PART_INSTALL/usr/include/cups/
+      mkdir -p $CRAFT_PART_INSTALL/usr/bin
+      cp cups-config $CRAFT_PART_INSTALL/usr/bin/
+      mkdir -p $CRAFT_PART_INSTALL/usr/lib/remarkable-printer-app/backend/
+      ( cd backend; \
+        cp snmp dnssd socket ipp ipps lpd usb org.cups.usb-quirks $CRAFT_PART_INSTALL/usr/lib/remarkable-printer-app/backend/ \
+      )
+      cp conf/snmp.conf $CRAFT_PART_INSTALL/usr/lib/remarkable-printer-app/backend/
+      #craftctl default
+    build-packages:
+      - patch
+      - gettext
+      - autoconf
+      - automake
+      - libtool
+      - autotools-dev
+      - pkg-config
+      - libavahi-client-dev
+      - libavahi-common-dev
+      - libavahi-compat-libdnssd-dev
+      - libdbus-1-dev
+      - libfontconfig1-dev
+      - libfreetype6-dev
+      - libgnutls28-dev
+      - libjpeg-dev
+      - libldap2-dev
+      - libkrb5-dev
+      - libpam0g-dev
+      - libpaper-dev
+      - libpng-dev
+      - libusb-1.0-0-dev
+      - perl-base
+    stage-packages:
+      - libusb-1.0-0
+      - libavahi-common3
+      - libavahi-client3
+      - libicu70
+    prime:
+      - -etc/fonts
+      - -var
+      - -usr/include
+      - -usr/lib/pkgconfig
+      - -usr/share/fonts
+      - -usr/share/man
+      - -usr/share/doc
+      - -usr/share/doc-base
+      - -usr/share/lintian
+      - lib/*/lib*.so*
+      - usr/lib/lib*.so*
+      - usr/lib/*/lib*.so*
+      - usr/lib/remarkable-printer-app/backend/*
+     # Reported unused by snapcraft linter
+      - -usr/lib/*/libdconf.*
+      - -usr/lib/*/libicuio.*
+      - -usr/lib/*/libicutest.*
+      - -usr/lib/*/libicutu.*
+      - -usr/lib/*/libicuuc.*
+      - -usr/lib/*/libicui18n.*
+
+  libcupsfilters:
+    source: https://github.com/OpenPrinting/libcupsfilters
+    source-type: git
+    source-tag: '2.1.1'
+    source-depth: 1
+    plugin: autotools
+    # We only need libcupsfilters itself. so we simply do not prime the
+    # auxiliary files (/usr/share)
+    autotools-configure-parameters:
+      - --prefix=/usr
+      - --disable-avahi
+      - --disable-mutool
+    # To find the libraries built in this Snap
+    build-environment:
+      - LD_LIBRARY_PATH: "${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$CRAFT_STAGE/usr/lib"
+    build-packages:
+      - gettext
+      - autoconf
+      - automake
+      - autotools-dev
+      - pkg-config
+      - g++
+      - sharutils
+      - liblcms2-dev
+      - libpoppler-cpp-dev
+      - libpng-dev
+      - libjpeg-dev
+      - libtiff5-dev
+      - zlib1g-dev
+      - libfontconfig1-dev
+      - libdbus-1-dev
+      - libexif-dev
+    stage-packages:
+      - libpoppler-cpp0v5
+      - libjbig0
+      - liblcms2-2
+      - libnspr4
+      - libnss3
+      - libopenjp2-7
+      - libpoppler118
+      - libtiff5
+      - libwebp7
+      - libexif12
+    stage:
+      # The *.la file which gets installed by "make install" contains a
+      # wrong prefix, breaking parts of this Snap which use this library
+      - -usr/lib/lib*.la
+    prime:
+      - -etc
+      - -var
+      - -usr/include
+      - -usr/lib/pkgconfig
+       - usr/share/cups
+      - -usr/share/fonts
+      - -usr/share/man
+      - -usr/share/doc
+      - -usr/share/doc-base
+      - -usr/share/lintian
+      - lib/*/lib*.so*
+      - usr/lib/lib*.so*
+      - usr/lib/*/lib*.so*
+      - usr/lib/*/nss
+      # Reported unused by snapcraft linter
+      - -usr/lib/*/libssl3.*
+    after: [cups, qpdf, ghostscript]
+
+  libppd:
+    source: https://github.com/OpenPrinting/libppd
+    source-type: git
+    source-tag: '2.1.1'
+    source-depth: 1
+    plugin: autotools
+    # We only need libppd itself, so we also do not prime the auxiliary files
+    # here.
+    autotools-configure-parameters:
+      - --prefix=/usr
+      - --disable-mutool
+      - --disable-pdftocairo
+      - --disable-acroread
+      - --with-pdftops-path=/snap/remarkable-printer-app/current/usr/bin/pdftops
+    # To find the libraries built in this Snap
+    build-environment:
+      - LD_LIBRARY_PATH: "${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$CRAFT_STAGE/usr/lib"
+    build-packages:
+      - gettext
+      - autoconf
+      - automake
+      - autotools-dev
+      - pkg-config
+      - g++
+      - sharutils
+      - poppler-utils
+    prime:
+      - -etc
+      - -var
+      - -usr/include
+      - -usr/lib/pkgconfig
+      - -usr/share/ppdc
+      - -usr/share/fonts
+      - -usr/share/man
+      - -usr/share/doc
+      - -usr/share/doc-base
+      - -usr/share/lintian
+      - lib/*/lib*.so*
+      - usr/lib/lib*.so*
+      - usr/lib/*/lib*.so*
+      - usr/lib/*/nss
+    after: [cups, ghostscript, libcupsfilters]
+
+  cups-filters:
+    source: https://github.com/OpenPrinting/cups-filters
+    source-type: git
+    source-tag: '2.0.1'
+    source-depth: 1
+    plugin: autotools
+    # To find the libraries built in this Snap
+    build-environment:
+      - LD_LIBRARY_PATH: "${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$CRAFT_STAGE/usr/lib"
+    # We only need pdftops and foomatic-rip (for PIN-protected printing
+    # on Ricoh and OEM)
+    override-build: |
+      set -eux
+      ./autogen.sh
+      ./configure --disable-mutool
+      make foomatic-rip
+      make pdftops
+      mkdir -p $CRAFT_PART_INSTALL
+      cp foomatic-rip $CRAFT_PART_INSTALL
+      cp pdftops $CRAFT_PART_INSTALL
+      #craftctl default
+    build-packages:
+      - gettext
+      - autoconf
+      - automake
+      - autotools-dev
+      - pkg-config
+      - g++
+      - sharutils
+    stage-packages:
+      - poppler-utils
+    organize:
+      foomatic-rip: usr/lib/remarkable-printer-app/filter/foomatic-rip
+      pdftops: usr/lib/remarkable-printer-app/filter/pdftops
+    prime:
+      - -etc/fonts
+      - -var
+      - -usr/include
+      - -usr/lib/pkgconfig
+      - -usr/share/fonts
+      - -usr/share/man
+      - -usr/share/doc
+      - -usr/share/doc-base
+      - -usr/share/lintian
+      - lib/*/lib*.so*
+      - usr/lib/lib*.so*
+      - usr/lib/*/lib*.so*
+      - usr/lib/*/nss
+      - usr/bin/pdftops
+      - usr/lib/remarkable-printer-app
+      # Reported unused by snapcraft linter
+      - -usr/lib/*/libcairo.*
+      - -usr/lib/*/libssl3.*
+      - -usr/lib/*/libX11.*
+      - -usr/lib/*/libXau.*
+      - -usr/lib/*/libXdmcp.*
+      - -usr/lib/*/libXext.*
+      - -usr/lib/*/libXrender.*
+      - -usr/lib/*/libpixman-1.*
+      - -usr/lib/*/libxcb.*
+      - -usr/lib/*/libxcb-render.*
+      - -usr/lib/*/libxcb-shm.*
+    after: [cups, ghostscript, libcupsfilters, libppd]
+
+  remarkable-printer-app:
+    plugin: make
+    source: .
+    make-parameters:
+      - LDFLAGS="$LDFLAGS -ljpeg"
+      - VERSION="$VERSION"
+    # To find the libraries built in this Snap
+    build-environment:
+      - LD_LIBRARY_PATH: "${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$CRAFT_STAGE/usr/lib"
+    # To improve convenience for developers (and everyone who wants to
+    # build from source), we do a "make clean" before "make" here,
+    # because if we had done "make" off-Snap, directly in the source
+    # tree and afterwards build the Snap with snapcraft, the build
+    # sucks in our local binary of remarkable-printer-app instead of
+    # compiling its own one in the Snap harness with the appropriate
+    # libraries, ending up with the Snap containing an executable
+    # which does not work inside the Snap. The "make clean" removes
+    # any accidentally grabbed binary.
+    #
+    # We need to directly call the "make" and "make install" commands
+    # here as we cannot inject an environment variable into the default
+    # build process ("craftctl default") and we also cannot call
+    # "craftctl get version" in the lines of "make-parameters:" or
+    # "build-environment:". This way we get the version number of our
+    # Snap (which is extracted from the foomatic-db upstream source)
+    # into the remarkable-printer-app executable.
+    override-build: |
+      set -eux
+      make clean
+      VERSION="`craftctl get version`"
+      make -j"8" LDFLAGS="$LDFLAGS -ljpeg" VERSION="$VERSION"
+      make -j"8" install LDFLAGS="$LDFLAGS -ljpeg" VERSION="$VERSION" DESTDIR="$CRAFT_PART_INSTALL"
+      #craftctl default
+    build-packages:
+      - libusb-1.0-0-dev
+    stage-packages:
+      - libusb-1.0-0
+      - libjbig0
+      - liblcms2-2
+      - libtiff5
+      - libwebp7
+    stage:
+      - -usr/lib/remarkable-printer-app
+    prime:
+      - usr/bin/remarkable-printer-app
+      - lib/*/lib*.so*
+      - usr/lib/*/lib*.so*
+      - usr/share/remarkable-printer-app
+      - usr/share/ppd
+      - -var
+      - -usr/share/man
+    after: [pappl-retrofit, pappl, libcupsfilters, libppd, cups-filters]
+
+  scripts:
+    plugin: dump
+    source: snap/local/
+    organize:
+      run-remarkable-printer-app*: scripts/
+    prime:
+      - scripts/
+    after: [remarkable-printer-app]

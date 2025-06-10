@@ -1,0 +1,20 @@
+#! /bin/sh
+
+mkdir -p $SNAP_COMMON/spool
+mkdir -p $SNAP_COMMON/cups/ssl
+mkdir -p $SNAP_COMMON/tmp
+chmod 1777 $SNAP_COMMON/tmp >/dev/null 2>&1 || :
+
+export TMPDIR=$SNAP_COMMON/tmp
+export FILTER_DIR=$SNAP/usr/lib/remarkable-printer-app/filter
+export BACKEND_DIR=$SNAP/usr/lib/remarkable-printer-app/backend
+export USB_QUIRK_DIR=$SNAP_COMMON
+export TESTPAGE_DIR=$SNAP/usr/share/remarkable-printer-app
+export PPD_PATHS=$SNAP/usr/share/ppd/
+export STATE_DIR=$SNAP_COMMON
+export STATE_FILE=$SNAP_COMMON/remarkable-printer-app.state
+export SPOOL_DIR=$SNAP_COMMON/spool
+export CUPS_SERVERROOT=$SNAP_COMMON/cups
+export CUPS_SERVERBIN=$SNAP/usr/lib/remarkable-printer-app
+
+exec $SNAP/usr/bin/remarkable-printer-app "$@"

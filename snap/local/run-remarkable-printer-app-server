@@ -1,0 +1,12 @@
+#!/bin/sh
+
+mkdir -p $SNAP_COMMON/cups
+export BACKEND_DIR=$SNAP/usr/lib/remarkable-printer-app/backend
+export CUPS_SERVERROOT=$SNAP_COMMON/cups
+
+# Initialize config files of the CUPS backends
+if [ ! -f $CUPS_SERVERROOT/snmp.conf ]; then
+    cp $BACKEND_DIR/snmp.conf $CUPS_SERVERROOT 2>/dev/null || :
+fi
+
+exec $SNAP/scripts/run-remarkable-printer-app -o log-file=$SNAP_COMMON/remarkable-printer-app.log server "$@"
