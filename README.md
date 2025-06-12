@@ -41,3 +41,13 @@ sudo snap install --dangerous remarkable-printer-app_*.snap
 ```
 
 Then visit: <http://localhost:8000>.
+
+
+## Local build
+
+```sh
+gcc $(PKG_CONFIG_PATH=$(pwd)/pfx/lib/pkgconfig pkg-config --cflags --libs pappl) -O0 -g remarkable-printer-app.c -o remarkable-printer-app
+LD_LIBRARY_PATH=$(pwd)/pfx/lib ./remarkable-printer-app server
+```
+
+https://www.msweet.org/pappl/pappl.html
