@@ -17,6 +17,12 @@ and [remarkable-cups].
 [remarkable-cups]: https://github.com/ofosos/scratch/tree/master/remarkable-cups
 
 
+## Usage
+
+```sh
+sudo remarkable-printer-app login
+sudo snap restart remarkable-printer-app
+
 ## Snap Build on Fedora
 
 Sigh: Docker interferes with snapd networking by default ...

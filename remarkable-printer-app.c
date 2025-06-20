@@ -9,13 +9,19 @@
 // CUPS: https://www.cups.org/doc/cupspm.html
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+// NEED TO USE papplDeviceAddScheme TO REGISTER A CUSTOM SCHEME ARRRGGGHHHH
 
 #include <pappl/pappl.h>
 
 const int UNIQUE_PRINTER_ID = 1;
+const int DEFAULT_PORT = 8000;
 
 typedef struct {
   pappl_system_t *system;
+  int port;
 } rmpa_global_data_t;
 
 static pappl_pr_driver_t drivers[] = {
@@ -57,6 +63,16 @@ rmpa_rwriteline_cb(pappl_job_t *job, pappl_pr_options_t *options, pappl_device_t
   return true;
 }
 
+static bool
+rmpa_printfile_cb(pappl_job_t *job, pappl_pr_options_t *options, pappl_device_t *device)
+{
+  pappl_printer_t *printer = papplJobGetPrinter(job);
+  pappl_system_t *system = papplPrinterGetSystem(printer);
+
+  printf("printing the file!!!!\n");
+  papplLog(system, PAPPL_LOGLEVEL_INFO, "PKGW print da file");
+  return true;
+}
 
 // see: https://github.com/OpenPrinting/pappl-retrofit/blob/master/pappl-retrofit/pappl-retrofit.c#L1114
 // and: https://www.msweet.org/pappl/pappl.html#the-driver-callback
@@ -74,7 +90,10 @@ rmpa_driver_init_cb(
   //   driver_data->extension = malloc(1);
   // }
 
-  driver_data->printfile_cb = NULL;
+  printf("driver init: %s %s %s\n", driver_name, device_uri, device_id);
+  fflush(stdout);
+
+  driver_data->printfile_cb = rmpa_printfile_cb;
   driver_data->rendjob_cb = rmpa_rendjob_cb;
   driver_data->rendpage_cb = rmpa_rendpage_cb;
   driver_data->rstartjob_cb = rmpa_rstartjob_cb;
@@ -124,10 +143,11 @@ rmpa_system_cb(
   rmpa_global_data_t *gdata = (rmpa_global_data_t *) data;
   pappl_system_t *sys;
 
+  // Without MULTI_QUEUE, there's no URL handler for `/` in the webserver!
   sys = papplSystemCreate(
     PAPPL_SOPTIONS_WEB_INTERFACE | PAPPL_SOPTIONS_MULTI_QUEUE,
     "reMarkable",
-    8000,
+    gdata->port,
     NULL, // subtypes
     NULL, // spooldir
     NULL, // logfile
@@ -156,7 +176,6 @@ rmpa_system_cb(
   return sys;
 }
 
-
 // This subcommand gets rmapi logged in so that we can actually print stuff!
 static int
 rmpa_login_subcmd_cb(
@@ -168,6 +187,9 @@ rmpa_login_subcmd_cb(
   void *data
 ) {
   rmpa_global_data_t *gdata = (rmpa_global_data_t *) data;
+  char *snap_common;
+  char state_path[512];
+  FILE *test_handle;
   pappl_printer_t *printer;
 
   if (num_files != 0) {
@@ -175,9 +197,31 @@ rmpa_login_subcmd_cb(
     return 1;
   }
 
+  snap_common = getenv("SNAP_COMMON");
+  if (!snap_common || !*snap_common) {
+    fprintf(stderr, "environment variable $SNAP_COMMON must be defined\n");
+    return 1;
+  }
+
   for (int i = 0; i < num_options; i++) {
     printf("option: name=%s value=%s\n", options[i].name, options[i].value);
   }
+
+  // Here we (intend to) construct the state path in exactly the same way as
+  // done within PAPPL. We don't have access to the value it determines, though.
+  snprintf(state_path, sizeof(state_path) - 1, "%s/%s.state", snap_common, base_name);
+  test_handle = fopen(state_path, "w");
+
+  if (test_handle == NULL) {
+    fprintf(stderr, "cannot open `%s` for writing: you probably need to run this command as root\n");
+    return 1;
+  }
+
+  fclose(test_handle);
+
+  // Needed to avoid an init error with us trying to grab the same port as a
+  // running server.
+  gdata->port = 0;
 
   // need to do this ourselves, it seems
   rmpa_system_cb(num_options, options, data);
@@ -190,7 +234,7 @@ rmpa_login_subcmd_cb(
     "reMarkable Cloud", // printer_name
     "remarkable", // driver_name
     NULL, // device_id
-    "remarkable://Printouts" // device_uri
+    "socket://remarkable/Printouts" // device_uri
   );
 
   if (printer == NULL) {
@@ -200,30 +244,33 @@ rmpa_login_subcmd_cb(
 
   papplSystemSetDefaultPrinterID(gdata->system, UNIQUE_PRINTER_ID);
 
+  papplSystemSaveState(gdata->system, state_path);
+
   // exec `rmapi account`
   return 0;
 }
 
 static rmpa_global_data_t the_global_data = {
-  NULL // system
+  NULL, // system
+  DEFAULT_PORT // port
 };
 
 int
-main(int  argc, char *argv[])
+main(int argc, char *argv[])
 {
-    return papplMainloop(
-      argc,
-      argv,
-      "0.1",
-      "Copyright Peter K. G. Williams. Provided under the terms of the <a href=\"https://www.apache.org/licenses/LICENSE-2.0\">Apache License 2.0</a>.",
-      0, // num_drivers
-      NULL, // drivers
-      NULL, // autoadd_cb
-      NULL, // drivers_cb
-      "login",
-      rmpa_login_subcmd_cb,
-      rmpa_system_cb,
-      NULL, // usage_cb
-      &the_global_data // data
-    );
+  return papplMainloop(
+    argc,
+    argv,
+    "0.1",
+    "Copyright Peter K. G. Williams. Provided under the terms of the <a href=\"https://www.apache.org/licenses/LICENSE-2.0\">Apache License 2.0</a>.",
+    0, // num_drivers
+    NULL, // drivers
+    NULL, // autoadd_cb
+    NULL, // drivers_cb
+    "login",
+    rmpa_login_subcmd_cb,
+    rmpa_system_cb,
+    NULL, // usage_cb
+    &the_global_data // data
+  );
 }
