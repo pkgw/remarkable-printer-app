@@ -12,6 +12,7 @@
 
 #include <pappl/pappl.h>
 
+const int UNIQUE_PRINTER_ID = 1;
 
 typedef struct {
   pappl_system_t *system;
@@ -124,7 +125,7 @@ rmpa_system_cb(
   pappl_system_t *sys;
 
   sys = papplSystemCreate(
-    PAPPL_SOPTIONS_NONE,
+    PAPPL_SOPTIONS_WEB_INTERFACE | PAPPL_SOPTIONS_MULTI_QUEUE,
     "reMarkable",
     8000,
     NULL, // subtypes
@@ -148,6 +149,9 @@ rmpa_system_cb(
     rmpa_driver_init_cb,
     NULL // data
   );
+
+  // Set up to listen on all network interfaces
+  papplSystemAddListeners(sys, NULL);
 
   return sys;
 }
@@ -182,7 +186,7 @@ rmpa_login_subcmd_cb(
 
   printer = papplPrinterCreate(
     gdata->system,
-    1,
+    UNIQUE_PRINTER_ID,
     "reMarkable Cloud", // printer_name
     "remarkable", // driver_name
     NULL, // device_id
@@ -193,6 +197,8 @@ rmpa_login_subcmd_cb(
     perror("error adding printer");
     return 1;
   }
+
+  papplSystemSetDefaultPrinterID(gdata->system, UNIQUE_PRINTER_ID);
 
   // exec `rmapi account`
   return 0;
