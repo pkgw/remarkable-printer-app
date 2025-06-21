@@ -12,6 +12,7 @@
 #include <spawn.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <wait.h>
 
@@ -128,7 +129,6 @@ rmpa_printfile_cb(pappl_job_t *job, pappl_pr_options_t *options, pappl_device_t 
   const char *filename = papplJobGetFilename(job); // Absolute path to the spooled PDF
   const char *jobname = papplJobGetName(job);      // This is the original basename of the input file
   const char *uri = papplPrinterGetDeviceURI(printer);
-  char *destdir;
   pid_t pid;
   int status, result;
   bool retcode = false;
@@ -141,20 +141,95 @@ rmpa_printfile_cb(pappl_job_t *job, pappl_pr_options_t *options, pappl_device_t 
     return false;
   }
 
-  destdir = strchr(uri + 13, '/');
+  char *destdir = strchr(uri + 13, '/');
   if (destdir == NULL)
   {
     destdir = "/";
   }
 
+  // `rmapi put` always uploads the file with the basename of the input path.
+  // Here, that filename has some uniquifiers that make it very
+  // human-unfriendly. We work around this by creating a symbolic link with a
+  // basename matching the job name, which will generally match the original
+  // filename.
+  //
+  // That job name might not be unique if we're handling multiple jobs at once,
+  // so we need to create it in some kind of uniquely-named temporary directory.
+  // Fortunately, our spool directory is private and our input filenames are
+  // uniquified, so we can get our uniquification by reusing what CUPS has
+  // already done.
+
+  char tmpdir[512];
+
+  if (snprintf(tmpdir, sizeof(tmpdir), "%s_tmpdir", filename) >= sizeof(tmpdir))
+  {
+    papplLog(system, PAPPL_LOGLEVEL_ERROR, "reMarkable printfile: tmpdir buffer too small");
+    return false;
+  }
+
+  if (mkdir(tmpdir, 0700))
+  {
+    papplLog(system, PAPPL_LOGLEVEL_ERROR, "reMarkable printfile: failed to mkdir(%s): %s", tmpdir, strerror(errno));
+    return false;
+  }
+
+  char tmpname[512];
+  const char *jobbase;
+
+  // Maybe jobname will never contain `/`, but let's not assume that ...
+  jobbase = strrchr(jobname, '/');
+  if (jobbase != NULL && jobbase[1] != '\0')
+  {
+    jobbase = jobbase + 1;
+  }
+  else
+  {
+    jobbase = jobname;
+  }
+
+  if (snprintf(tmpname, sizeof(tmpname), "%s/%s", tmpdir, jobbase) >= sizeof(tmpname))
+  {
+    papplLog(system, PAPPL_LOGLEVEL_ERROR, "reMarkable printfile: tmpname buffer too small");
+    return false;
+  }
+
+  // `rmapi` requires that the input filename end in `.pdf`, so make sure that's the case.
+  size_t n = strlen(tmpname);
+
+  if (n <= 4 || strcmp(tmpname + n - 4, ".pdf"))
+  {
+    // snprintf(b, sizeof(b), "%sstuff", b) is not guaranteed to work
+    if (n >= sizeof(tmpname) - 5)
+    {
+      papplLog(system, PAPPL_LOGLEVEL_ERROR, "reMarkable printfile: tmpname buffer too small (2)");
+      return false;
+    }
+
+    strcpy(tmpname + n, ".pdf");
+  }
+
+  if (symlink(filename, tmpname))
+  {
+    papplLog(
+        system,
+        PAPPL_LOGLEVEL_ERROR,
+        "reMarkable printfile: failed to symlink(%s, %s): %s",
+        filename,
+        tmpname,
+        strerror(errno));
+    return false;
+  }
+
+  // Ready to run the program
+
   char *const argv[] = {
-      "rmapi", "put", (char *)filename, destdir, NULL};
+      "rmapi", "put", tmpname, destdir, NULL};
 
   papplLog(
       system,
       PAPPL_LOGLEVEL_INFO,
       "reMarkable printfile: launching: rmapi put %s %s",
-      filename,
+      tmpname,
       destdir);
 
   // Our handling of the spawned process is mega-overkill, but the posix_spawn()
@@ -240,6 +315,17 @@ rmpa_printfile_cb(pappl_job_t *job, pappl_pr_options_t *options, pappl_device_t 
         system,
         PAPPL_LOGLEVEL_ERROR,
         "reMarkable printfile: child process failure");
+  }
+
+  // Clean up our temporaries
+
+  if (unlink(tmpname))
+  {
+    papplLog(system, PAPPL_LOGLEVEL_ERROR, "reMarkable printfile: failed to unlink(%s): %s", tmpname, strerror(errno));
+  }
+  else if (rmdir(tmpdir))
+  {
+    papplLog(system, PAPPL_LOGLEVEL_ERROR, "reMarkable printfile: failed to rmdir(%s): %s", tmpdir, strerror(errno));
   }
 
   return retcode;
