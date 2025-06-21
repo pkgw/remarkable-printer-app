@@ -362,7 +362,9 @@ rmpa_login_subcmd_cb(
   rmpa_global_data_t *gdata = (rmpa_global_data_t *)data;
   char *snap_common;
   char state_path[512];
+  char uri[512];
   FILE *test_handle;
+  const char *destdir = "/";
   pappl_printer_t *printer;
 
   if (num_files != 0)
@@ -374,24 +376,40 @@ rmpa_login_subcmd_cb(
   snap_common = getenv("SNAP_COMMON");
   if (!snap_common || !*snap_common)
   {
-    fprintf(stderr, "environment variable $SNAP_COMMON must be defined\n");
+    fprintf(stderr, "error: environment variable $SNAP_COMMON must be defined\n");
     return 1;
   }
 
   for (int i = 0; i < num_options; i++)
   {
-    printf("option: name=%s value=%s\n", options[i].name, options[i].value);
+    if (strcmp(options[i].name, "destdir") == 0)
+    {
+      const char *v = options[i].value;
+
+      if (v[0] != '/')
+      {
+        fprintf(stderr, "error: the value of the `destdir` option must start with `/`\n");
+        return 1;
+      }
+
+      destdir = v;
+    }
   }
 
   // Here we (intend to) construct the state path in exactly the same way as
   // done within PAPPL. We don't have access to the value it determines, so we
   // have to duplicate the logic.
-  snprintf(state_path, sizeof(state_path) - 1, "%s/%s.state", snap_common, base_name);
+  if (snprintf(state_path, sizeof(state_path), "%s/%s.state", snap_common, base_name) >= sizeof(state_path))
+  {
+    fprintf(stderr, "error: state path buffer too small\n");
+    return 1;
+  }
+
   test_handle = fopen(state_path, "w");
 
   if (test_handle == NULL)
   {
-    fprintf(stderr, "cannot open `%s` for writing: you probably need to run this command as root\n", state_path);
+    fprintf(stderr, "error: cannot open `%s` for writing: you probably need to run this command as root\n", state_path);
     return 1;
   }
 
@@ -406,14 +424,21 @@ rmpa_login_subcmd_cb(
 
   // ensure that the unique reMarkable Cloud printer is defined
 
+  if (snprintf(uri, sizeof(uri), "remarkable://default%s", destdir) >= sizeof(uri))
+  {
+    fprintf(stderr, "error: uri buffer too small\n");
+    return 1;
+  }
+
+  printf("Created/updated printer with destination folder `%s`.\n", destdir);
+
   printer = papplPrinterCreate(
       gdata->system,
       UNIQUE_PRINTER_ID,
-      "reMarkable Connect",            // printer_name
-      "remarkable",                    // driver_name
-      NULL,                            // device_id
-      "remarkable://default/Printouts" // device_uri
-  );
+      "reMarkable Connect", // printer_name
+      "remarkable",         // driver_name
+      NULL,                 // device_id
+      uri);
 
   if (printer == NULL)
   {
