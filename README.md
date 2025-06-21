@@ -2,15 +2,19 @@
 
 This is a [“Printer Application”][pappl] that allows “printing” documents
 directly to a [reMarkable] device, via the [reMarkable Connect][rmc]
-([my.remarkable.com](https://my.remarkable.com/)) service.
+([my.remarkable.com](https://my.remarkable.com/)) service. On a
+properly-configured computer, after you install the app you will see a new
+printer called “reMarkable Connect”, and printing to it will cause documents to
+appear on your tablet.
 
 [pappl]: https://www.msweet.org/pappl
 [reMarkable]: https://remarkable.com/
 [rmc]: https://remarkable.com/shop/connect
 
-Under the hood it is powered by the [rmapi] program. The implementation is
-derived from a combination of [OpenPrinting/ps-printer-app] and
-[remarkable-cups], although in the end it shares very little code with either.
+Under the hood this app is powered by the program [rmapi]. The printer app
+implementation is derived from a combination of [OpenPrinting/ps-printer-app]
+and [remarkable-cups], although in the end it shares very little code with
+either.
 
 [rmapi]: https://github.com/ddvk/rmapi
 [OpenPrinting/ps-printer-app]: https://github.com/OpenPrinting/ps-printer-app
