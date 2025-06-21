@@ -280,11 +280,11 @@ rmpa_driver_init_cb(
   driver_data->x_default = 300;
   driver_data->y_default = 300;
   driver_data->raster_types = PAPPL_PWG_RASTER_TYPE_BLACK_1;
-  driver_data->color_supported = PAPPL_COLOR_MODE_AUTO;
+  driver_data->color_supported = PAPPL_COLOR_MODE_AUTO | PAPPL_COLOR_MODE_COLOR | PAPPL_COLOR_MODE_MONOCHROME;
   driver_data->color_default = PAPPL_COLOR_MODE_AUTO;
   driver_data->num_media = 1;
   driver_data->media[0] = "na_letter_8.5x11in";
-  driver_data->sides_supported = PAPPL_SIDES_ONE_SIDED;
+  driver_data->sides_supported = PAPPL_SIDES_ONE_SIDED | PAPPL_SIDES_TWO_SIDED_LONG_EDGE | PAPPL_SIDES_TWO_SIDED_SHORT_EDGE;
   driver_data->sides_default = PAPPL_SIDES_ONE_SIDED;
   driver_data->num_source = 1;
   driver_data->source[0] = "fake-source";
