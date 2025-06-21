@@ -19,19 +19,49 @@
 const int UNIQUE_PRINTER_ID = 1;
 const int DEFAULT_PORT = 8000;
 
-typedef struct {
+typedef struct
+{
   pappl_system_t *system;
   int port;
 } rmpa_global_data_t;
 
 static pappl_pr_driver_t drivers[] = {
-  {
-    "reMarkable Cloud Printing", // description
-    NULL, // IEEE-1284 device_id
-    NULL, // extension data pointer
-    "remarkable" // driver name
- }
-};
+    {
+        "reMarkable Cloud Printing", // description
+        NULL,                        // IEEE-1284 device_id
+        NULL,                        // extension data pointer
+        "remarkable"                 // driver name
+    }};
+
+static bool
+rmpa_devopen_cb(pappl_device_t *device, const char *device_uri, const char *name)
+{
+  return true;
+}
+
+static void
+rmpa_devclose_cb(pappl_device_t *device)
+{
+  return;
+}
+
+static ssize_t
+rmpa_devread_cb(pappl_device_t *device, void *buffer, size_t bytes)
+{
+  return -1;
+}
+
+static ssize_t
+rmpa_devwrite_cb(pappl_device_t *device, const void *buffer, size_t bytes)
+{
+  return -1;
+}
+
+static pappl_preason_t
+rmpa_devstatus_cb(pappl_device_t *device)
+{
+  return PAPPL_PREASON_NONE;
+}
 
 static bool
 rmpa_rendjob_cb(pappl_job_t *job, pappl_pr_options_t *options, pappl_device_t *device)
@@ -78,14 +108,14 @@ rmpa_printfile_cb(pappl_job_t *job, pappl_pr_options_t *options, pappl_device_t 
 // and: https://www.msweet.org/pappl/pappl.html#the-driver-callback
 static bool
 rmpa_driver_init_cb(
-  pappl_system_t *system,
-  const char *driver_name,
-  const char *device_uri,
-  const char *device_id,
-  pappl_pr_driver_data_t *driver_data,
-  ipp_t **driver_attrs,
-  void *data
-) {
+    pappl_system_t *system,
+    const char *driver_name,
+    const char *device_uri,
+    const char *device_id,
+    pappl_pr_driver_data_t *driver_data,
+    ipp_t **driver_attrs,
+    void *data)
+{
   // if (driver_data->extension == NULL) {
   //   driver_data->extension = malloc(1);
   // }
@@ -106,7 +136,7 @@ rmpa_driver_init_cb(
   strncpy(driver_data->make_and_model, "reMarkable Cloud", sizeof(driver_data->make_and_model) - 1);
   driver_data->ppm = 100; // pages per minute
   driver_data->ppm_color = 100;
-  driver_data->num_resolution  = 1;
+  driver_data->num_resolution = 1;
   driver_data->x_resolution[0] = 300;
   driver_data->y_resolution[0] = 300;
   driver_data->x_default = 300;
@@ -117,43 +147,43 @@ rmpa_driver_init_cb(
   driver_data->num_media = 1;
   driver_data->media[0] = "na_letter_8.5x11in";
   driver_data->sides_supported = PAPPL_SIDES_ONE_SIDED;
-  driver_data->sides_default   = PAPPL_SIDES_ONE_SIDED;
+  driver_data->sides_default = PAPPL_SIDES_ONE_SIDED;
   driver_data->num_source = 1;
-  driver_data->source[0]  = "fake-source";
+  driver_data->source[0] = "fake-source";
   driver_data->num_type = 1;
   driver_data->type[0] = "fake-type";
   driver_data->media_ready[0].bottom_margin = driver_data->bottom_top;
-  driver_data->media_ready[0].left_margin   = driver_data->left_right;
-  driver_data->media_ready[0].right_margin  = driver_data->left_right;
-  driver_data->media_ready[0].size_width    = 21590;
-  driver_data->media_ready[0].size_length   = 27940;
-  driver_data->media_ready[0].top_margin    = driver_data->bottom_top;
+  driver_data->media_ready[0].left_margin = driver_data->left_right;
+  driver_data->media_ready[0].right_margin = driver_data->left_right;
+  driver_data->media_ready[0].size_width = 21590;
+  driver_data->media_ready[0].size_length = 27940;
+  driver_data->media_ready[0].top_margin = driver_data->bottom_top;
   strncpy(driver_data->media_ready[0].source, driver_data->source[0], sizeof(driver_data->media_ready[0].source) - 1);
-  strncpy(driver_data->media_ready[0].type, driver_data->type[0],  sizeof(driver_data->media_ready[0].type) - 1);
+  strncpy(driver_data->media_ready[0].type, driver_data->type[0], sizeof(driver_data->media_ready[0].type) - 1);
   driver_data->media_default = driver_data->media_ready[0];
   return true;
 }
 
 static pappl_system_t *
 rmpa_system_cb(
-  int num_options,
-  cups_option_t *options,
-  void *data
-) {
-  rmpa_global_data_t *gdata = (rmpa_global_data_t *) data;
+    int num_options,
+    cups_option_t *options,
+    void *data)
+{
+  rmpa_global_data_t *gdata = (rmpa_global_data_t *)data;
   pappl_system_t *sys;
 
   // Without MULTI_QUEUE, there's no URL handler for `/` in the webserver!
   sys = papplSystemCreate(
-    PAPPL_SOPTIONS_WEB_INTERFACE | PAPPL_SOPTIONS_MULTI_QUEUE,
-    "reMarkable",
-    gdata->port,
-    NULL, // subtypes
-    NULL, // spooldir
-    NULL, // logfile
-    PAPPL_LOGLEVEL_UNSPEC,
-    NULL, // auth_service
-    false // tls_only
+      PAPPL_SOPTIONS_WEB_INTERFACE | PAPPL_SOPTIONS_MULTI_QUEUE,
+      "reMarkable",
+      gdata->port,
+      NULL, // subtypes
+      NULL, // spooldir
+      NULL, // logfile
+      PAPPL_LOGLEVEL_UNSPEC,
+      NULL, // auth_service
+      false // tls_only
   );
 
   gdata->system = sys;
@@ -161,13 +191,13 @@ rmpa_system_cb(
   papplSystemSetLogLevel(sys, PAPPL_LOGLEVEL_DEBUG);
 
   papplSystemSetPrinterDrivers(
-    sys,
-    1,
-    drivers,
-    NULL, // autoadd_cb
-    NULL, // create_cb
-    rmpa_driver_init_cb,
-    NULL // data
+      sys,
+      1,
+      drivers,
+      NULL, // autoadd_cb
+      NULL, // create_cb
+      rmpa_driver_init_cb,
+      NULL // data
   );
 
   // Set up to listen on all network interfaces
@@ -179,31 +209,34 @@ rmpa_system_cb(
 // This subcommand gets rmapi logged in so that we can actually print stuff!
 static int
 rmpa_login_subcmd_cb(
-  const char *base_name,
-  int num_options,
-  cups_option_t *options,
-  int num_files,
-  char **files,
-  void *data
-) {
-  rmpa_global_data_t *gdata = (rmpa_global_data_t *) data;
+    const char *base_name,
+    int num_options,
+    cups_option_t *options,
+    int num_files,
+    char **files,
+    void *data)
+{
+  rmpa_global_data_t *gdata = (rmpa_global_data_t *)data;
   char *snap_common;
   char state_path[512];
   FILE *test_handle;
   pappl_printer_t *printer;
 
-  if (num_files != 0) {
+  if (num_files != 0)
+  {
     fprintf(stderr, "usage error: pass no files to the `login` subcommand\n");
     return 1;
   }
 
   snap_common = getenv("SNAP_COMMON");
-  if (!snap_common || !*snap_common) {
+  if (!snap_common || !*snap_common)
+  {
     fprintf(stderr, "environment variable $SNAP_COMMON must be defined\n");
     return 1;
   }
 
-  for (int i = 0; i < num_options; i++) {
+  for (int i = 0; i < num_options; i++)
+  {
     printf("option: name=%s value=%s\n", options[i].name, options[i].value);
   }
 
@@ -212,8 +245,9 @@ rmpa_login_subcmd_cb(
   snprintf(state_path, sizeof(state_path) - 1, "%s/%s.state", snap_common, base_name);
   test_handle = fopen(state_path, "w");
 
-  if (test_handle == NULL) {
-    fprintf(stderr, "cannot open `%s` for writing: you probably need to run this command as root\n");
+  if (test_handle == NULL)
+  {
+    fprintf(stderr, "cannot open `%s` for writing: you probably need to run this command as root\n", state_path);
     return 1;
   }
 
@@ -229,15 +263,16 @@ rmpa_login_subcmd_cb(
   // ensure that the unique reMarkable Cloud printer is defined
 
   printer = papplPrinterCreate(
-    gdata->system,
-    UNIQUE_PRINTER_ID,
-    "reMarkable Cloud", // printer_name
-    "remarkable", // driver_name
-    NULL, // device_id
-    "socket://remarkable/Printouts" // device_uri
+      gdata->system,
+      UNIQUE_PRINTER_ID,
+      "reMarkable Cloud",              // printer_name
+      "remarkable",                    // driver_name
+      NULL,                            // device_id
+      "remarkable://default/Printouts" // device_uri
   );
 
-  if (printer == NULL) {
+  if (printer == NULL)
+  {
     perror("error adding printer");
     return 1;
   }
@@ -251,26 +286,37 @@ rmpa_login_subcmd_cb(
 }
 
 static rmpa_global_data_t the_global_data = {
-  NULL, // system
-  DEFAULT_PORT // port
+    NULL,        // system
+    DEFAULT_PORT // port
 };
 
-int
-main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
+  papplDeviceAddScheme(
+      "remarkable",
+      PAPPL_DEVTYPE_CUSTOM_LOCAL,
+      NULL, // list_cb
+      rmpa_devopen_cb,
+      rmpa_devclose_cb,
+      rmpa_devread_cb,
+      rmpa_devwrite_cb,
+      rmpa_devstatus_cb,
+      NULL // id_cb
+  );
+
   return papplMainloop(
-    argc,
-    argv,
-    "0.1",
-    "Copyright Peter K. G. Williams. Provided under the terms of the <a href=\"https://www.apache.org/licenses/LICENSE-2.0\">Apache License 2.0</a>.",
-    0, // num_drivers
-    NULL, // drivers
-    NULL, // autoadd_cb
-    NULL, // drivers_cb
-    "login",
-    rmpa_login_subcmd_cb,
-    rmpa_system_cb,
-    NULL, // usage_cb
-    &the_global_data // data
+      argc,
+      argv,
+      "0.1",
+      "Copyright Peter K. G. Williams. Provided under the terms of the <a href=\"https://www.apache.org/licenses/LICENSE-2.0\">Apache License 2.0</a>.",
+      0,    // num_drivers
+      NULL, // drivers
+      NULL, // autoadd_cb
+      NULL, // drivers_cb
+      "login",
+      rmpa_login_subcmd_cb,
+      rmpa_system_cb,
+      NULL,            // usage_cb
+      &the_global_data // data
   );
 }
