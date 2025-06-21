@@ -8,13 +8,15 @@
 // PAPPL API docs: https://www.msweet.org/pappl/pappl.html
 // CUPS: https://www.cups.org/doc/cupspm.html
 
+#include <spawn.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-
-// NEED TO USE papplDeviceAddScheme TO REGISTER A CUSTOM SCHEME ARRRGGGHHHH
+#include <wait.h>
 
 #include <pappl/pappl.h>
+
+extern char **environ;
 
 const int UNIQUE_PRINTER_ID = 1;
 const int DEFAULT_PORT = 8000;
@@ -98,10 +100,123 @@ rmpa_printfile_cb(pappl_job_t *job, pappl_pr_options_t *options, pappl_device_t 
 {
   pappl_printer_t *printer = papplJobGetPrinter(job);
   pappl_system_t *system = papplPrinterGetSystem(printer);
+  const char *filename = papplJobGetFilename(job);
+  const char *jobname = papplJobGetName(job);
+  const char *uri = papplPrinterGetDeviceURI(printer);
+  char *destdir;
+  pid_t pid;
+  int status, result;
+  bool retcode = false;
 
-  printf("printing the file!!!!\n");
-  papplLog(system, PAPPL_LOGLEVEL_INFO, "PKGW print da file");
-  return true;
+  papplLog(system, PAPPL_LOGLEVEL_INFO, "PKGW print da file: %s", filename);
+  papplLog(system, PAPPL_LOGLEVEL_INFO, "devuri: %s", uri);
+  papplLog(system, PAPPL_LOGLEVEL_INFO, "jobname: %s", jobname);
+
+  if (strncmp(uri, "remarkable://", 13))
+  {
+    papplLog(system, PAPPL_LOGLEVEL_ERROR, "reMarkable device URI `%s` has wrong prefix", uri);
+    return false;
+  }
+
+  destdir = strchr(uri + 13, '/');
+  if (destdir == NULL)
+  {
+    destdir = "/";
+  }
+
+  char *const argv[] = {
+      "rmapi", "put", (char *)filename, destdir, NULL};
+
+  papplLog(
+      system,
+      PAPPL_LOGLEVEL_INFO,
+      "reMarkable printfile: launching: rmapi put %s %s",
+      filename,
+      destdir);
+
+  result = posix_spawnp(
+      &pid,
+      "rmapi",
+      NULL, // file_actions
+      NULL, // attr
+      argv,
+      environ);
+
+  if (result != 0)
+  {
+    papplLog(system, PAPPL_LOGLEVEL_ERROR, "reMarkable printfile: spawn failed!");
+    return false;
+  }
+
+  papplLog(
+      system,
+      PAPPL_LOGLEVEL_INFO,
+      "reMarkable printfile: child PID %d",
+      (int)pid);
+
+  do
+  {
+    result = waitpid(pid, &status, WUNTRACED | WCONTINUED);
+    if (result == -1)
+    {
+      papplLog(system, PAPPL_LOGLEVEL_ERROR, "reMarkable printfile: waitpid failed!");
+      return false;
+    }
+
+    if (WIFEXITED(status))
+    {
+      papplLog(
+          system,
+          PAPPL_LOGLEVEL_INFO,
+          "reMarkable printfile: child exited with status %d",
+          WEXITSTATUS(status));
+
+      if (WEXITSTATUS(status) == 0)
+      {
+        retcode = true;
+      }
+    }
+    else if (WIFSIGNALED(status))
+    {
+      papplLog(
+          system,
+          PAPPL_LOGLEVEL_INFO,
+          "reMarkable printfile: child killed by signal %d",
+          WTERMSIG(status));
+    }
+    else if (WIFSTOPPED(status))
+    {
+      papplLog(
+          system,
+          PAPPL_LOGLEVEL_INFO,
+          "reMarkable printfile: child stopped by signal %d",
+          WSTOPSIG(status));
+    }
+    else if (WIFCONTINUED(status))
+    {
+      papplLog(
+          system,
+          PAPPL_LOGLEVEL_INFO,
+          "reMarkable printfile: child continued");
+    }
+  } while (!WIFEXITED(status) && !WIFSIGNALED(status));
+
+  if (retcode)
+  {
+    papplLog(
+        system,
+        PAPPL_LOGLEVEL_INFO,
+        "reMarkable printfile: child process success");
+  }
+  else
+  {
+    papplLog(
+        system,
+        PAPPL_LOGLEVEL_ERROR,
+        "reMarkable printfile: child process failure");
+  }
+
+  return retcode;
 }
 
 // see: https://github.com/OpenPrinting/pappl-retrofit/blob/master/pappl-retrofit/pappl-retrofit.c#L1114
@@ -116,10 +231,6 @@ rmpa_driver_init_cb(
     ipp_t **driver_attrs,
     void *data)
 {
-  // if (driver_data->extension == NULL) {
-  //   driver_data->extension = malloc(1);
-  // }
-
   printf("driver init: %s %s %s\n", driver_name, device_uri, device_id);
   fflush(stdout);
 
@@ -281,8 +392,17 @@ rmpa_login_subcmd_cb(
 
   papplSystemSaveState(gdata->system, state_path);
 
-  // exec `rmapi account`
-  return 0;
+  printf(
+      "Now logging into reMarkable Connect account.\n"
+      "After logging in, restart the `snap` printer app service:\n\n"
+      "   sudo snap restart %s\n\n",
+      base_name);
+
+  execlp("rmapi", "rmapi", "account", NULL);
+
+  // If we're here, something bad happened!
+  perror("failed to execute `rmapi account`");
+  return 1;
 }
 
 static rmpa_global_data_t the_global_data = {
