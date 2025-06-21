@@ -32,10 +32,10 @@ typedef struct
 
 static pappl_pr_driver_t drivers[] = {
     {
-        "reMarkable Cloud Printing", // description
-        NULL,                        // IEEE-1284 device_id
-        NULL,                        // extension data pointer
-        "remarkable"                 // driver name
+        "Print to reMarkable device", // description
+        NULL,                         // IEEE-1284 device_id
+        NULL,                         // extension data pointer
+        "remarkable"                  // driver name
     }};
 
 // Required callbacks for our `remarkable://` device schema - need to define it
@@ -357,7 +357,7 @@ rmpa_driver_init_cb(
   driver_data->format = "application/pdf";
   driver_data->orient_default = IPP_ORIENT_NONE;
   driver_data->quality_default = IPP_QUALITY_NORMAL;
-  strncpy(driver_data->make_and_model, "reMarkable Cloud", sizeof(driver_data->make_and_model) - 1);
+  strncpy(driver_data->make_and_model, "reMarkable Connect", sizeof(driver_data->make_and_model) - 1);
   driver_data->ppm = 100; // pages per minute
   driver_data->ppm_color = 100;
   driver_data->num_resolution = 1;
@@ -508,7 +508,7 @@ rmpa_login_subcmd_cb(
   // need to do this ourselves, it seems
   rmpa_system_cb(num_options, options, data);
 
-  // ensure that the unique reMarkable Cloud printer is defined
+  // Ensure that the printer is defined. Currently, it is unique.
 
   if (snprintf(uri, sizeof(uri), "remarkable://default%s", destdir) >= sizeof(uri))
   {
@@ -571,7 +571,7 @@ int main(int argc, char *argv[])
   return papplMainloop(
       argc,
       argv,
-      "0.1",
+      "1.0.1",
       "Copyright the reMarkable Printer Application Contributors. Provided under the terms of the <a href=\"https://www.apache.org/licenses/LICENSE-2.0\">Apache License 2.0</a>.",
       0,    // num_drivers
       NULL, // drivers
