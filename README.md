@@ -2,7 +2,7 @@
 
 This is a [“Printer Application”][pappl] that allows “printing” documents
 directly to a [reMarkable] device, via the [reMarkable Connect][rmc]
-(<my.remarkable.com>) service.
+([my.remarkable.com](https://my.remarkable.com/)) service.
 
 [pappl]: https://www.msweet.org/pappl
 [reMarkable]: https://remarkable.com/
@@ -43,7 +43,8 @@ to the Snap Store, so you’ll have to build and install it yourself:
 After the snap is installed, set it up as follows:
 
 1. Run `sudo remarkable-printer-app login`
-   - This will prompt you to go to the <my.remarkable.com> site and get a device
+   - This will prompt you to go to the
+     [my.remarkable.com](https://my.remarkable.com/) site and get a device
      connection code
 1. Run `sudo snap enable remarkable-printer-app`
 1. Run `sudo snap restart remarkable-printer-app` just to be safe
@@ -58,8 +59,8 @@ You can also run `remarkable-printer-app path/to/a/pdf-file` to print a PDF at
 the command line.
 
 Like other Printer Apps, this app also provides a web management UI at
-<http://localhost:8000/>. However, since it has very little flexibility, you
-should rarely if ever need to use the UI.
+<http://localhost:8000/>. However, since this particular app has very little
+flexibility, you should rarely if ever need to use the UI.
 
 
 ## Details
@@ -74,7 +75,8 @@ should be specified in the style of a Unix-like absolute path. For instance:
 sudo remarkable-printer-app login -o destdir=/Printouts
 ```
 
-This will cause printed files to appear in the “Printouts” folder.
+This will cause printed files to appear in the “Printouts” folder on your
+device.
 
 ### Snap Networking and Docker
 
@@ -120,7 +122,7 @@ the default `submit` mode.
 
 The first version of the reMarkable Printer App was created by Peter K. G.
 Williams. The initial code structure was derived from
-[OpenPrinter/ps-printer-app], by Till Kamppeter, which in turn was derived from
+[OpenPrinting/ps-printer-app], by Till Kamppeter, which in turn was derived from
 [hp-printer-app](https://github.com/michaelrsweet/hp-printer-app) by Michael R.
 Sweet, who is also the author of the [PAPPL][pappl] library used by this app.
 
