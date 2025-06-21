@@ -1,6 +1,6 @@
 name: remarkable-printer-app
 base: core22
-version: '20240504-11'
+version: 1.0.0
 grade: stable
 summary: reMarkable Printer Application
 description: |
@@ -10,11 +10,6 @@ description: |
 
 confinement: strict
 
-# We use the upstream versioning of foomatic-db as it contains most of
-# the manufacturer-supplied PostScript PPD files
-### adopt-info: foomatic-db
-
-# Only build on the architectures supported
 architectures:
   - build-on: amd64
 
@@ -188,8 +183,6 @@ parts:
     source: https://github.com/ddvk/rmapi
     source-type: git
     source-tag: v0.0.30
-    # organize:
-    #   install/bin/rmapi: usr/bin/rmapi
     prime:
       - bin/rmapi
 
