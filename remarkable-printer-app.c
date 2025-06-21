@@ -1,12 +1,13 @@
 // reMarkable Printer Application
 //
-// Copyright Peter K. G. Williams.
+// Copyright the reMarkable Printer Application Contributors
 //
 // Licensed under Apache License v2.0.  See the file "LICENSE" for more
 // information.
 //
-// PAPPL API docs: https://www.msweet.org/pappl/pappl.html
-// CUPS: https://www.cups.org/doc/cupspm.html
+// API docs:
+//   - PAPPL: https://www.msweet.org/pappl/pappl.html
+//   - CUPS: https://www.cups.org/doc/cupspm.html
 
 #include <spawn.h>
 #include <stdio.h>
@@ -18,6 +19,7 @@
 
 extern char **environ;
 
+const int SET_DEBUG_LOG_LEVEL = 1;
 const int UNIQUE_PRINTER_ID = 1;
 const int DEFAULT_PORT = 8000;
 
@@ -34,6 +36,10 @@ static pappl_pr_driver_t drivers[] = {
         NULL,                        // extension data pointer
         "remarkable"                 // driver name
     }};
+
+// Required callbacks for our `remarkable://` device schema - need to define it
+// in order to be able to create a printer that doesn't acťually try to interact
+// with any hardware
 
 static bool
 rmpa_devopen_cb(pappl_device_t *device, const char *device_uri, const char *name)
@@ -65,56 +71,73 @@ rmpa_devstatus_cb(pappl_device_t *device)
   return PAPPL_PREASON_NONE;
 }
 
+// Raster rendering callbacks - we're required to provide these
+
 static bool
 rmpa_rendjob_cb(pappl_job_t *job, pappl_pr_options_t *options, pappl_device_t *device)
 {
-  return true;
+  pappl_printer_t *printer = papplJobGetPrinter(job);
+  pappl_system_t *system = papplPrinterGetSystem(printer);
+  papplLog(system, PAPPL_LOGLEVEL_ERROR, "reMarkable: raster callback `rendjob` should never be used");
+  return false;
 }
 
 static bool
 rmpa_rendpage_cb(pappl_job_t *job, pappl_pr_options_t *options, pappl_device_t *device, unsigned page)
 {
-  return true;
+  pappl_printer_t *printer = papplJobGetPrinter(job);
+  pappl_system_t *system = papplPrinterGetSystem(printer);
+  papplLog(system, PAPPL_LOGLEVEL_ERROR, "reMarkable: raster callback `rendpage` should never be used");
+  return false;
 }
 
 static bool
 rmpa_rstartjob_cb(pappl_job_t *job, pappl_pr_options_t *options, pappl_device_t *device)
 {
-  return true;
+  pappl_printer_t *printer = papplJobGetPrinter(job);
+  pappl_system_t *system = papplPrinterGetSystem(printer);
+  papplLog(system, PAPPL_LOGLEVEL_ERROR, "reMarkable: raster callback `rstartjob` should never be used");
+  return false;
 }
 
 static bool
 rmpa_rstartpage_cb(pappl_job_t *job, pappl_pr_options_t *options, pappl_device_t *device, unsigned page)
 {
-  return true;
+  pappl_printer_t *printer = papplJobGetPrinter(job);
+  pappl_system_t *system = papplPrinterGetSystem(printer);
+  papplLog(system, PAPPL_LOGLEVEL_ERROR, "reMarkable: raster callback `rstartpage` should never be used");
+  return false;
 }
 
 static bool
 rmpa_rwriteline_cb(pappl_job_t *job, pappl_pr_options_t *options, pappl_device_t *device, unsigned y, const unsigned char *line)
 {
-  return true;
+  pappl_printer_t *printer = papplJobGetPrinter(job);
+  pappl_system_t *system = papplPrinterGetSystem(printer);
+  papplLog(system, PAPPL_LOGLEVEL_ERROR, "reMarkable: raster callback `rwriteline` should never be used");
+  return false;
 }
+
+// Our actual file-printing callback!
 
 static bool
 rmpa_printfile_cb(pappl_job_t *job, pappl_pr_options_t *options, pappl_device_t *device)
 {
   pappl_printer_t *printer = papplJobGetPrinter(job);
   pappl_system_t *system = papplPrinterGetSystem(printer);
-  const char *filename = papplJobGetFilename(job);
-  const char *jobname = papplJobGetName(job);
+  const char *filename = papplJobGetFilename(job); // Absolute path to the spooled PDF
+  const char *jobname = papplJobGetName(job);      // This is the original basename of the input file
   const char *uri = papplPrinterGetDeviceURI(printer);
   char *destdir;
   pid_t pid;
   int status, result;
   bool retcode = false;
 
-  papplLog(system, PAPPL_LOGLEVEL_INFO, "PKGW print da file: %s", filename);
-  papplLog(system, PAPPL_LOGLEVEL_INFO, "devuri: %s", uri);
-  papplLog(system, PAPPL_LOGLEVEL_INFO, "jobname: %s", jobname);
+  papplLog(system, PAPPL_LOGLEVEL_INFO, "reMarkable printfile: filename=%s", filename);
 
   if (strncmp(uri, "remarkable://", 13))
   {
-    papplLog(system, PAPPL_LOGLEVEL_ERROR, "reMarkable device URI `%s` has wrong prefix", uri);
+    papplLog(system, PAPPL_LOGLEVEL_ERROR, "reMarkable printfile: device URI `%s` has wrong prefix", uri);
     return false;
   }
 
@@ -133,6 +156,9 @@ rmpa_printfile_cb(pappl_job_t *job, pappl_pr_options_t *options, pappl_device_t 
       "reMarkable printfile: launching: rmapi put %s %s",
       filename,
       destdir);
+
+  // Our handling of the spawned process is mega-overkill, but the posix_spawn()
+  // manpage has a nice thorough example.
 
   result = posix_spawnp(
       &pid,
@@ -219,7 +245,11 @@ rmpa_printfile_cb(pappl_job_t *job, pappl_pr_options_t *options, pappl_device_t 
   return retcode;
 }
 
-// see: https://github.com/OpenPrinting/pappl-retrofit/blob/master/pappl-retrofit/pappl-retrofit.c#L1114
+// The driver init callback needs to set up a whole bunch of stuff in order for
+// PAPPL to be happy. We fake as much as possible.
+//
+// see:
+// https://github.com/OpenPrinting/pappl-retrofit/blob/master/pappl-retrofit/pappl-retrofit.c#L1114
 // and: https://www.msweet.org/pappl/pappl.html#the-driver-callback
 static bool
 rmpa_driver_init_cb(
@@ -231,9 +261,6 @@ rmpa_driver_init_cb(
     ipp_t **driver_attrs,
     void *data)
 {
-  printf("driver init: %s %s %s\n", driver_name, device_uri, device_id);
-  fflush(stdout);
-
   driver_data->printfile_cb = rmpa_printfile_cb;
   driver_data->rendjob_cb = rmpa_rendjob_cb;
   driver_data->rendpage_cb = rmpa_rendpage_cb;
@@ -275,6 +302,7 @@ rmpa_driver_init_cb(
   return true;
 }
 
+// The "system" object creation callback.
 static pappl_system_t *
 rmpa_system_cb(
     int num_options,
@@ -299,7 +327,10 @@ rmpa_system_cb(
 
   gdata->system = sys;
 
-  papplSystemSetLogLevel(sys, PAPPL_LOGLEVEL_DEBUG);
+  if (SET_DEBUG_LOG_LEVEL)
+  {
+    papplSystemSetLogLevel(sys, PAPPL_LOGLEVEL_DEBUG);
+  }
 
   papplSystemSetPrinterDrivers(
       sys,
@@ -317,7 +348,8 @@ rmpa_system_cb(
   return sys;
 }
 
-// This subcommand gets rmapi logged in so that we can actually print stuff!
+// Custom "login" subcommand -- this creates a default reMarkable printer and
+// logs in the rmapi program so that we can actually do anything!
 static int
 rmpa_login_subcmd_cb(
     const char *base_name,
@@ -352,7 +384,8 @@ rmpa_login_subcmd_cb(
   }
 
   // Here we (intend to) construct the state path in exactly the same way as
-  // done within PAPPL. We don't have access to the value it determines, though.
+  // done within PAPPL. We don't have access to the value it determines, so we
+  // have to duplicate the logic.
   snprintf(state_path, sizeof(state_path) - 1, "%s/%s.state", snap_common, base_name);
   test_handle = fopen(state_path, "w");
 
@@ -376,7 +409,7 @@ rmpa_login_subcmd_cb(
   printer = papplPrinterCreate(
       gdata->system,
       UNIQUE_PRINTER_ID,
-      "reMarkable Cloud",              // printer_name
+      "reMarkable Connect",            // printer_name
       "remarkable",                    // driver_name
       NULL,                            // device_id
       "remarkable://default/Printouts" // device_uri
@@ -400,7 +433,7 @@ rmpa_login_subcmd_cb(
 
   execlp("rmapi", "rmapi", "account", NULL);
 
-  // If we're here, something bad happened!
+  // If we get here, something bad happened!
   perror("failed to execute `rmapi account`");
   return 1;
 }
@@ -428,7 +461,7 @@ int main(int argc, char *argv[])
       argc,
       argv,
       "0.1",
-      "Copyright Peter K. G. Williams. Provided under the terms of the <a href=\"https://www.apache.org/licenses/LICENSE-2.0\">Apache License 2.0</a>.",
+      "Copyright the reMarkable Printer Application Contributors. Provided under the terms of the <a href=\"https://www.apache.org/licenses/LICENSE-2.0\">Apache License 2.0</a>.",
       0,    // num_drivers
       NULL, // drivers
       NULL, // autoadd_cb
