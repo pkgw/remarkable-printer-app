@@ -103,22 +103,31 @@ sudo firewall-cmd --zone=trusted --change-interface=lxdbr0 --permanent
 sudo firewall-cmd --reload
 ```
 
+### Paper Sizes
+
+A reMarkable device can display PDFs that use any paper size. Unfortunately, in
+order to pretend that the reMarkable is a printer, we have to provide a list of
+specific paper sizes that it “supports”. If you try to print a document whose
+actual size does not appear on the list, the attempt will fail.
+
+The app claims that the reMarkable supports three paper sizes:
+
+- US Letter
+- A4
+- A custom size matching the reMarkable screen: 445×594 pts
+
+Even when you select a specific paper size in a printer dialog, some apps seem
+to struggle to deliver it in practice. For instance, when I try to print a
+webpage at the custom reMarkable size in Firefox, the delivered content actually
+has A4 size.
+
 ### Printing Things That Aren’t PDFs
 
 At the lowest level, this app can only accept PDF file inputs. Hopefully, your
-computer will understand this and be able to pre-render other kinds of documents to
-PDF before sending them to the reMarkable Printer App … but if there are times when
-it can’t, printing will fail.
-
-The app reports the reMarkable as accepting a custom paper size corresponding
-the size of the reMarkable screen (445×594 pts). When rasterizing non-PDFs, some
-applications seem to struggle to deliver content at that actual size. (For
-instance, my Firefox seems to be delivering A4 size.) If the delivered size is
-incorrect, printing will fail.
-
-*TODO?* It might be better to also pretend that the reMarkable accepts A4 or US
-Letter to try to be more forgiving.
-
+computer will understand this and be able to pre-render other kinds of documents
+to PDF before sending them to the reMarkable Printer App … but if there are
+times when it can’t, printing will fail. Any on-the-fly PDF-ification process
+may also struggle regarding the paper size issues mentioned above.
 
 ### The `remarkable-printer-app` CLI
 

@@ -372,8 +372,10 @@ rmpa_driver_init_cb(
   // On a reMarkable 2, a PDF generated from a native notebook has a "paper size"
   // of 445x594 pts. At 72 points per inch, we get the following dimensions. The
   // height is exact here; FWIW, the dimensions are not cleaner in cm/mm.
-  driver_data->num_media = 1;
+  driver_data->num_media = 3;
   driver_data->media[0] = "custom_remarkable_6.181x8.25in";
+  driver_data->media[1] = "na_letter_8.5x11in";
+  driver_data->media[2] = "iso_a4_210x297mm";
 
   driver_data->sides_supported = PAPPL_SIDES_ONE_SIDED | PAPPL_SIDES_TWO_SIDED_LONG_EDGE | PAPPL_SIDES_TWO_SIDED_SHORT_EDGE;
   driver_data->sides_default = PAPPL_SIDES_ONE_SIDED;
