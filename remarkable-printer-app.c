@@ -580,6 +580,11 @@ int main(int argc, char *argv[])
       NULL // id_cb
   );
 
+  // TODO: find some way to hack the "submit" mode to support "direct PDF"
+  // printing that just sends a PDF without worrying about whether the paper
+  // size matches, etc. If that's not possible, maybe add a hack here to peek at
+  // argc/argv and configure one of several subcommands based on what we see!
+
   return papplMainloop(
       argc,
       argv,
