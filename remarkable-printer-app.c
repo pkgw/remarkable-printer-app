@@ -581,7 +581,7 @@ int main(int argc, char *argv[])
   return papplMainloop(
       argc,
       argv,
-      "1.0.1",
+      "1.0.2",
       "Copyright the reMarkable Printer Application Contributors. Provided under the terms of the <a href=\"https://www.apache.org/licenses/LICENSE-2.0\">Apache License 2.0</a>.",
       0,    // num_drivers
       NULL, // drivers
