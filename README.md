@@ -110,9 +110,15 @@ computer will understand this and be able to pre-render other kinds of documents
 PDF before sending them to the reMarkable Printer App … but if there are times when
 it can’t, printing will fail.
 
-**TODO:** The “paper size” of the reMarkable printer is configured to be US Letter,
-which is not the actual size of a reMarkable's display. A different size should yield
-outputs that fit the reMarkable screen better.
+The app reports the reMarkable as accepting a custom paper size corresponding
+the size of the reMarkable screen (445×594 pts). When rasterizing non-PDFs, some
+applications seem to struggle to deliver content at that actual size. (For
+instance, my Firefox seems to be delivering A4 size.) If the delivered size is
+incorrect, printing will fail.
+
+*TODO?* It might be better to also pretend that the reMarkable accepts A4 or US
+Letter to try to be more forgiving.
+
 
 ### The `remarkable-printer-app` CLI
 

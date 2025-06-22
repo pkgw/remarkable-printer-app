@@ -368,20 +368,30 @@ rmpa_driver_init_cb(
   driver_data->raster_types = PAPPL_PWG_RASTER_TYPE_BLACK_1;
   driver_data->color_supported = PAPPL_COLOR_MODE_AUTO | PAPPL_COLOR_MODE_COLOR | PAPPL_COLOR_MODE_MONOCHROME;
   driver_data->color_default = PAPPL_COLOR_MODE_AUTO;
+
+  // On a reMarkable 2, a PDF generated from a native notebook has a "paper size"
+  // of 445x594 pts. At 72 points per inch, we get the following dimensions. The
+  // height is exact here; FWIW, the dimensions are not cleaner in cm/mm.
   driver_data->num_media = 1;
-  driver_data->media[0] = "na_letter_8.5x11in";
+  driver_data->media[0] = "custom_remarkable_6.181x8.25in";
+
   driver_data->sides_supported = PAPPL_SIDES_ONE_SIDED | PAPPL_SIDES_TWO_SIDED_LONG_EDGE | PAPPL_SIDES_TWO_SIDED_SHORT_EDGE;
   driver_data->sides_default = PAPPL_SIDES_ONE_SIDED;
   driver_data->num_source = 1;
-  driver_data->source[0] = "fake-source";
+  driver_data->source[0] = "custom-remarkable-source";
   driver_data->num_type = 1;
-  driver_data->type[0] = "fake-type";
-  driver_data->media_ready[0].bottom_margin = driver_data->bottom_top;
-  driver_data->media_ready[0].left_margin = driver_data->left_right;
-  driver_data->media_ready[0].right_margin = driver_data->left_right;
-  driver_data->media_ready[0].size_width = 21590;
-  driver_data->media_ready[0].size_length = 27940;
-  driver_data->media_ready[0].top_margin = driver_data->bottom_top;
+  driver_data->type[0] = "custom-remarkable-type";
+
+  // This is in units of 0.001 cm, so the value should be `(inches) * 2540`
+  driver_data->media_ready[0].size_width = 15699;
+  driver_data->media_ready[0].size_length = 20955;
+
+  driver_data->media_ready[0].bottom_margin = 0;
+  driver_data->media_ready[0].left_margin = 0;
+  driver_data->media_ready[0].right_margin = 0;
+  driver_data->media_ready[0].top_margin = 0;
+  driver_data->media_ready[0].left_offset = 0;
+  driver_data->media_ready[0].top_offset = 0;
   strncpy(driver_data->media_ready[0].source, driver_data->source[0], sizeof(driver_data->media_ready[0].source) - 1);
   strncpy(driver_data->media_ready[0].type, driver_data->type[0], sizeof(driver_data->media_ready[0].type) - 1);
   driver_data->media_default = driver_data->media_ready[0];
