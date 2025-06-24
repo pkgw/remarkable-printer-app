@@ -1,6 +1,6 @@
 name: remarkable-printer-app
 base: core22
-version: 1.0.3
+version: 1.0.4
 grade: stable
 summary: reMarkable Printer Application
 description: |
