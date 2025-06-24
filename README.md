@@ -62,8 +62,8 @@ start showing you a new printer called “reMarkable Connect” or
 You can also run `remarkable-printer-app path/to/a/pdf-file` to print a PDF at
 the command line.
 
-Like other Printer Apps, this app also provides a web management UI at
-<http://localhost:8000/>. However, since this particular app has very little
+Like other Printer Apps, this app also provides a web management UI, served at
+<http://localhost:8773/>. However, since this particular app has very little
 flexibility, you should rarely if ever need to use the UI.
 
 

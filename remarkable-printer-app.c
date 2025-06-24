@@ -22,7 +22,7 @@ extern char **environ;
 
 const int SET_DEBUG_LOG_LEVEL = 1;
 const int UNIQUE_PRINTER_ID = 1;
-const int DEFAULT_PORT = 8000;
+const int DEFAULT_PORT = 8773;
 
 typedef struct
 {
