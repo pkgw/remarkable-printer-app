@@ -568,6 +568,19 @@ static rmpa_global_data_t the_global_data = {
 
 int main(int argc, char *argv[])
 {
+  const char *version = "1.0.5"; // change also in snap/snapcraft.yaml
+
+  printf(
+    "starting up reMarkable printer app version %s\n",
+    version);
+
+  // Not sure if this is necessary, but see: https://github.com/ddvk/rmapi/pull/55
+  if (setenv("RMAPI_FORCE_SCHEMA_VERSION", "4", 1)) {
+    fprintf(
+      stderr,
+      "failed to setenv RMAPI_FORCE_SCHEMA_VERSION\n");
+  }
+
   papplDeviceAddScheme(
       "remarkable",
       PAPPL_DEVTYPE_CUSTOM_LOCAL,
@@ -588,7 +601,7 @@ int main(int argc, char *argv[])
   return papplMainloop(
       argc,
       argv,
-      "1.0.4",
+      version,
       "Copyright the reMarkable Printer Application Contributors. Provided under the terms of the <a href=\"https://www.apache.org/licenses/LICENSE-2.0\">Apache License 2.0</a>.",
       0,    // num_drivers
       NULL, // drivers

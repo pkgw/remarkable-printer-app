@@ -1,6 +1,6 @@
 name: remarkable-printer-app
 base: core22
-version: 1.0.4
+version: 1.0.5  # change also in remarkable-printer-app.c
 grade: stable
 summary: reMarkable Printer Application
 description: |
@@ -182,7 +182,7 @@ parts:
     build-snaps: [go/latest/stable]
     source: https://github.com/ddvk/rmapi
     source-type: git
-    source-tag: v0.0.30
+    source-tag: v0.0.32
     prime:
       - bin/rmapi
 
