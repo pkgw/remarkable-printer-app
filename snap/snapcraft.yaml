@@ -1,13 +1,18 @@
 name: remarkable-printer-app
+title: reMarkable Printer Application
 base: core22
 version: 1.0.6  # change also in remarkable-printer-app.c
 grade: stable
-summary: reMarkable Printer Application
+summary: '"Print" files to a reMarkable device.'
 description: |
   The reMarkable Printer Application is a PAPPL (Printer Application Framework) based 
   Printer Application that supports printing to a reMarkable tablet via the
   reMarkable Connect cloud service.
-
+contact: https://github.com/pkgw/remarkable-printer-app/issues
+issues: https://github.com/pkgw/remarkable-printer-app/issues
+source-code: https://github.com/pkgw/remarkable-printer-app/
+website: https://github.com/pkgw/remarkable-printer-app/
+license: Apache-2.0
 confinement: strict
 
 architectures:
