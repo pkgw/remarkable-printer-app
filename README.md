@@ -41,6 +41,7 @@ to the Snap Store, so you’ll have to build and install it yourself:
 
 1. Install [snap] and [snapcraft], the snap build tool
 1. Check out this repo
+1. (Optional) Run `rm -f remarkable-printer-app_*.snap` to remove any old builds
 1. Run `snapcraft pack` to build the app’s snap
 1. Run `sudo snap install --dangerous remarkable-printer-app_*.snap` to install it
 

@@ -568,7 +568,7 @@ static rmpa_global_data_t the_global_data = {
 
 int main(int argc, char *argv[])
 {
-  const char *version = "1.0.5"; // change also in snap/snapcraft.yaml
+  const char *version = "1.0.6"; // change also in snap/snapcraft.yaml
 
   printf(
     "starting up reMarkable printer app version %s\n",
