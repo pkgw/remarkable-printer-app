@@ -223,7 +223,7 @@ rmpa_printfile_cb(pappl_job_t *job, pappl_pr_options_t *options, pappl_device_t 
   // Ready to run the program
 
   char *const argv[] = {
-      "rmapi", "put", tmpname, destdir, NULL};
+      "rmapi", "put", "--force", tmpname, destdir, NULL};
 
   papplLog(
       system,
