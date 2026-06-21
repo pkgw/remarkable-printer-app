@@ -1,7 +1,7 @@
 name: remarkable-printer-app
 title: reMarkable Printer Application
 base: core22
-version: 1.0.6  # change also in remarkable-printer-app.c
+version: 1.0.7  # change also in remarkable-printer-app.c
 grade: stable
 summary: '"Print" files to a reMarkable device.'
 description: |
